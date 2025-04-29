@@ -18,7 +18,9 @@ def allowed_file(filename):
 
 # Función para conectar con la base de datos
 def get_db_connection():
-    conn = sqlite3.connect('liga_mtg.db')
+    BASE_DIR = os.path.dirname(os.path.abspath(__file__))  # Directorio donde está app.py
+    db_path = os.path.join(BASE_DIR, "liga_mtg.db")        # Ruta absoluta
+    conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row
     return conn
 
