@@ -44,6 +44,7 @@ def home():
         <a class="boton" href="/registrar-mazo">Registrar nuevo mazo</a>
         <a class="boton" href="/ranking">Ver Ranking Mazos</a>
         <a class="boton" href="/ranking-global">Ver Ranking Jugadores </a>
+        <a class="boton" href="/ranking-global-filtrado">Ver Ranking con Filtro </a>
         <a class="boton" href="/registrar-partida">Registrar una nueva partida</a>
         <a class="boton" href="/registrar-partida-simulado">Registrar una pseudo-partida</a>
         <a class="boton" href="/mazos">Ver y editar mazos registrados</a>
@@ -65,7 +66,7 @@ def registrar_mazo_form():
         <form action="/registrar" method="post" enctype="multipart/form-data">
             <input type="text" name="jugador" placeholder="Nombre del Jugador" required><br><br>
             <input type="text" name="mazo" placeholder="Nombre del Mazo" required><br><br>
-            <input type="text" name="o_id" placeholder="Código Identificación del Mazo" required><br><br>
+            <textarea name="o_id" placeholder="KeyWord (tipo de Mazo)" rows="3" cols="30"></textarea><br><br>
             <textarea name="cartas" placeholder="Listado de cartas (una por línea)" rows="10" cols="30"></textarea><br><br>
             Subir Imagen del Mazo: <input type="file" name="imagen"><br><br>
             <input type="submit" value="Registrar Mazo">
@@ -153,8 +154,13 @@ def editar_mazo_form(mazo_id):
     <body style="text-align:center; padding:50px;">
         <h1>Editando Mazo: {mazo['nombre_mazo']}</h1>
         <form action="/editar-mazo/{mazo_id}" method="post" enctype="multipart/form-data">
+            <br>Jugador: <br>
             <input type="text" name="jugador" value="{mazo['jugador']}" required><br><br>
+            <br>Nombre del Mazo: <br>
             <input type="text" name="mazo" value="{mazo['nombre_mazo']}" required><br><br>
+            <br>Keywords (tipo de Mazo): <br>
+            <textarea name="o_id" rows="3" cols="30">{mazo['Open_id']}</textarea><br><br>
+            <br>Listado de Cartas: <br>
             <textarea name="cartas" rows="10" cols="30">{mazo['cartas_lista']}</textarea><br><br>
             Imagen Actual:<br>
             {'<img src="' + mazo['imagen_url'] + '" style="max-width:150px;">' if mazo['imagen_url'] else 'Sin imagen'}<br><br>
@@ -164,7 +170,7 @@ def editar_mazo_form(mazo_id):
             REQUERIDO: ¿Cuántas cartas cambiaste?<br>
             (Puedes poner 0. Cada carta cambiada descuenta 2% del ELO)
             </div><br>
-            <input type="number" name="cartas_cambiadas" min="0" required><br><br>
+            <input type="number" name="cartas_cambiadas" min="0" placeholder="Cartas cambiadas (minimo 0) *REQUERIDO" required style="width: 300px; height: 40px;"><br><br>
             <input type="submit" value="Guardar Cambios">
         </form>
         <br><br>
@@ -197,6 +203,7 @@ def borrar_mazo(mazo_id):
 def editar_mazo_guardar(mazo_id):
     jugador = request.form.get('jugador')
     nombre_mazo = request.form.get('mazo')
+    open_id = request.form.get('o_id')  # <<--- Capturamos el nuevo Open_id
     cartas_lista = request.form.get('cartas')
     cartas_cambiadas = int(request.form.get('cartas_cambiadas'))
     file = request.files['imagen']
@@ -223,9 +230,9 @@ def editar_mazo_guardar(mazo_id):
 
     conn.execute('''
         UPDATE mazos
-        SET jugador = ?, nombre_mazo = ?, cartas_lista = ?, imagen_url = ?, elo = ?
+        SET jugador = ?, nombre_mazo = ?, Open_id = ?, cartas_lista = ?, imagen_url = ?, elo = ?
         WHERE id = ?
-    ''', (jugador, nombre_mazo, cartas_lista, imagen_url, nuevo_elo, mazo_id))
+    ''', (jugador, nombre_mazo, open_id, cartas_lista, imagen_url, nuevo_elo, mazo_id))
 
     conn.commit()
     conn.close()
@@ -593,6 +600,94 @@ def historial_partidas():
                 <td>{mazo2}</td>
                 <td>{resultado}</td>
             </tr>
+        '''
+
+    tabla += '''
+        </table>
+        <br>
+        <a href="/">Volver al Menú Principal</a>
+    </body>
+    </html>
+    '''
+
+    return tabla
+@app.route('/ranking-global-filtrado', methods=['GET'])
+def ranking_global_filtrado_form():
+    return '''
+    <html>
+    <head><title>Ranking Global Filtrado</title></head>
+    <body style="text-align:center; padding:50px;">
+        <h1>Ranking Global Filtrado por Palabra Clave</h1>
+        <form action="/ranking-global-filtrado" method="post">
+            <label for="filtro">Ingresa palabras clave (separadas por coma si son varias):</label><br><br>
+            <input type="text" name="filtro" placeholder="Ej: Monocolor, Bloomburrow" size="50" required><br><br>
+            <input type="submit" value="Ver Ranking Filtrado">
+        </form>
+        <br>
+        <a href="/">Volver al Menú Principal</a>
+    </body>
+    </html>
+    '''
+@app.route('/ranking-global-filtrado', methods=['POST'])
+def ranking_global_filtrado():
+    filtros = request.form.get('filtro')
+    filtros = [f.strip() for f in filtros.split(',') if f.strip() != '']
+
+    if not filtros:
+        return "<h1>No ingresaste filtros válidos</h1><a href='/ranking-global-filtrado'>Volver</a>"
+
+    # Construimos parte dinámica del SQL
+    condiciones = " OR ".join(["Open_id LIKE ?" for _ in filtros])
+    parametros = [f"%{filtro}%" for filtro in filtros]
+
+    conn = get_db_connection()
+    jugadores = conn.execute(f'''
+        SELECT 
+            jugador, 
+            AVG(elo) as promedio_elo, 
+            COUNT(*) as cantidad_mazos
+        FROM mazos
+        WHERE {condiciones}
+        GROUP BY jugador
+        ORDER BY promedio_elo DESC
+    ''', parametros).fetchall()
+    conn.close()
+
+    tabla = '''
+    <html>
+    <head>
+        <title>Ranking Global Filtrado</title>
+        <style>
+            body { font-family: Arial; text-align: center; padding: 50px; background-color: #e8f0fe; }
+            table { margin: auto; border-collapse: collapse; width: 80%; }
+            th, td { border: 1px solid #ddd; padding: 8px; }
+            th { background-color: #28a745; color: white; }
+            tr:nth-child(even) { background-color: #f2f2f2; }
+        </style>
+    </head>
+    <body>
+        <h1>Ranking Global Filtrado</h1>
+        <h3>Filtros aplicados: ''' + ", ".join(filtros) + '''</h3>
+        <table>
+            <tr>
+                <th>Jugador</th>
+                <th>ELO Promedio</th>
+                <th>Número de Mazos</th>
+            </tr>
+    '''
+
+    if jugadores:
+        for jugador in jugadores:
+            tabla += f'''
+                <tr>
+                    <td>{jugador['jugador']}</td>
+                    <td>{round(jugador['promedio_elo'], 2)}</td>
+                    <td>{jugador['cantidad_mazos']}</td>
+                </tr>
+            '''
+    else:
+        tabla += '''
+            <tr><td colspan="3">No se encontraron jugadores con esos filtros.</td></tr>
         '''
 
     tabla += '''
