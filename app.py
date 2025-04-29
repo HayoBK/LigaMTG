@@ -24,19 +24,134 @@ def get_db_connection():
     conn.row_factory = sqlite3.Row
     return conn
 
+def html_head(title="MTG Torneo"):
+    return f'''
+    <head>
+        <title>{title}</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <style>
+            body {{
+                font-family: Arial, sans-serif;
+                text-align: center;
+                padding: 20px;
+                background-color: #eef;
+                margin: 0;
+            }}
+
+            h1, h2, h3 {{
+                margin-bottom: 20px;
+            }}
+
+            table {{
+                margin: auto;
+                border-collapse: collapse;
+                width: 95%;
+                max-width: 800px;
+            }}
+
+            th, td {{
+                border: 1px solid #ddd;
+                padding: 12px;
+                font-size: 16px;
+            }}
+
+            th {{
+                background-color: #4CAF50;
+                color: white;
+                font-size: 18px;
+            }}
+
+            tr:nth-child(even) {{
+                background-color: #f2f2f2;
+            }}
+
+            img {{
+                max-width: 100%;
+                height: auto;
+                margin: 10px 0;
+            }}
+
+            form {{
+                margin: 20px 0;
+            }}
+
+            input[type="text"],
+            input[type="number"],
+            input[type="file"],
+            textarea,
+            select {{
+                font-size: 18px;
+                padding: 10px;
+                width: 90%;
+                max-width: 400px;
+                margin-bottom: 15px;
+                border: 1px solid #ccc;
+                border-radius: 5px;
+            }}
+
+            textarea {{
+                resize: vertical;
+            }}
+
+            input[type="submit"],
+            .boton {{
+                background-color: #4CAF50;
+                color: white;
+                font-weight: bold;
+                padding: 12px 24px;
+                border: none;
+                border-radius: 8px;
+                font-size: 18px;
+                cursor: pointer;
+                margin: 10px 0;
+                display: inline-block;
+                text-decoration: none;
+            }}
+
+            input[type="submit"]:hover,
+            .boton:hover {{
+                background-color: #45a049;
+            }}
+
+            @media (max-width: 600px) {{
+                table, th, td {{
+                    font-size: 14px;
+                    padding: 8px;
+                }}
+
+                input[type="text"],
+                input[type="number"],
+                input[type="file"],
+                textarea,
+                select {{
+                    font-size: 16px;
+                }}
+
+                input[type="submit"],
+                .boton {{
+                    font-size: 16px;
+                    padding: 10px 20px;
+                }}
+            }}
+            img.ranking-img {{
+                max-width: 80px;
+                height: auto;
+                border-radius: 8px;
+                }}
+        </style>
+    </head>
+    '''
+
+
+
+
 # Página principal: MENÚ
 @app.route('/', methods=['GET'])
 def home():
-    return '''
+    return f'''
     <html>
-    <head>
-        <title>MTG Torneo - Menú Principal</title>
-        <style>
-            body { font-family: Arial; text-align: center; padding: 50px; background-color: #eef; }
-            .boton { display: block; margin: 20px; padding: 10px; background: #4CAF50; color: white; text-decoration: none; width: 250px; margin-left: auto; margin-right: auto; border-radius: 5px; }
-            img { max-width: 400px; margin-top: 20px; }
-        </style>
-    </head>
+    {html_head("LIGA MTG - HBK")}
+  
     <body>
         <h1>Bienvenido a Liga MTG 2025 - LAS TRES PIERNAS</h1>
         <img src="https://static.wixstatic.com/media/73522c_eef87b5cad5c4f8ca41de702a9b268f8~mv2.jpg" alt="Portada">
@@ -58,9 +173,9 @@ def home():
 # Página para mostrar formulario de registrar mazo
 @app.route('/registrar-mazo', methods=['GET'])
 def registrar_mazo_form():
-    return '''
+    return f'''
     <html>
-    <head><title>Registrar Mazo</title></head>
+    {html_head("LIGA-Registrar Mazo")}
     <body style="text-align:center; padding:50px;">
         <h1>Registrar Mazo Nuevo</h1>
         <form action="/registrar" method="post" enctype="multipart/form-data">
@@ -101,9 +216,9 @@ def registrar():
     conn.commit()
     conn.close()
 
-    return '''
+    return f'''
     <html>
-    <head><title>Registrado</title></head>
+    {html_head("Registrado")}
     <body style="text-align:center; padding:50px;">
         <h2>¡Mazo registrado exitosamente!</h2>
         <a href="/">Volver al Menú Principal</a><br>
@@ -130,7 +245,7 @@ def ver_mazos():
 
     return f'''
     <html>
-    <head><title>Mazos Registrados</title></head>
+    {html_head("Mazos registrados")}
     <body style="text-align:center; padding:50px;">
         <h1>Mazos Registrados</h1>
         {listado}
@@ -150,7 +265,7 @@ def editar_mazo_form(mazo_id):
 
     return f'''
     <html>
-    <head><title>Editar Mazo</title></head>
+    {html_head("Editar Mazo")}
     <body style="text-align:center; padding:50px;">
         <h1>Editando Mazo: {mazo['nombre_mazo']}</h1>
         <form action="/editar-mazo/{mazo_id}" method="post" enctype="multipart/form-data">
@@ -269,19 +384,10 @@ def ver_ranking():
 
     conn.close()
 
-    tabla = '''
+    tabla = f'''
     <html>
-    <head>
-        <title>Ranking de Mazos</title>
-        <style>
-            body { font-family: Arial; text-align: center; padding: 50px; background-color: #f5f5f5; }
-            table { margin: auto; border-collapse: collapse; width: 90%; }
-            th, td { border: 1px solid #ddd; padding: 8px; }
-            th { background-color: #4CAF50; color: white; }
-            img { max-width: 100px; }
-            tr:nth-child(even) { background-color: #f2f2f2; }
-        </style>
-    </head>
+    {html_head("Ranking")}
+       
     <body>
         <h1>Ranking de Mazos</h1>
         <table>
@@ -296,7 +402,8 @@ def ver_ranking():
     '''
 
     for mazo in mazos:
-        imagen_html = f"<img src='{mazo['imagen_url']}' alt='Sin imagen'>" if mazo['imagen_url'] else "Sin imagen"
+        imagen_html = f"<img src='{mazo['imagen_url']}' class='ranking-img' alt='Sin imagen'>" if mazo[
+            'imagen_url'] else "Sin imagen"
         info = partidas_info.get(mazo['id'], {'jugadas': 0, 'ganadas': 0, 'porcentaje': 0})
         tabla += f'''
             <tr>
@@ -332,7 +439,7 @@ def registrar_partida_form():
 
     return f'''
     <html>
-    <head><title>Registrar Partida</title></head>
+    {html_head("Registrar partida")}
     <body style="text-align:center; padding:50px;">
         <h1>Registrar Resultado de Partida</h1>
         <form action="/registrar-partida" method="post">
@@ -394,9 +501,9 @@ def registrar_partida_guardar():
     conn.commit()
     conn.close()
 
-    return '''
+    return f'''
     <html>
-    <head><title>Partida Registrada</title></head>
+    {html_head("Partida registrada")}
     <body style="text-align:center; padding:50px;">
         <h2>¡Partida registrada correctamente!</h2>
         <a href="/">Volver al Menú Principal</a><br>
@@ -419,18 +526,9 @@ def ranking_global():
     ''').fetchall()
     conn.close()
 
-    tabla = '''
+    tabla = f'''
     <html>
-    <head>
-        <title>Ranking Global de Jugadores</title>
-        <style>
-            body { font-family: Arial; text-align: center; padding: 50px; background-color: #e8f0fe; }
-            table { margin: auto; border-collapse: collapse; width: 80%; }
-            th, td { border: 1px solid #ddd; padding: 8px; }
-            th { background-color: #007BFF; color: white; }
-            tr:nth-child(even) { background-color: #f2f2f2; }
-        </style>
-    </head>
+    {html_head("Ranking Global")}
     <body>
         <h1>Ranking Global de Jugadores</h1>
         <table>
@@ -472,7 +570,7 @@ def registrar_partida_simulado_form():
 
     return f'''
     <html>
-    <head><title>Registrar Partida vs Rival Simulado</title></head>
+    {html_head("Registrar Partida (simulado)")}
     <body style="text-align:center; padding:50px;">
         <h1>Partida contra Rival Simulado</h1>
         <form action="/registrar-partida-simulado" method="post">
@@ -527,9 +625,9 @@ def registrar_partida_simulado_guardar():
     conn.commit()
     conn.close()
 
-    return '''
+    return f'''
     <html>
-    <head><title>Partida Simulada Registrada</title></head>
+    {html_head("Registrar partida")}
     <body style="text-align:center; padding:50px;">
         <h2>¡Resultado registrado correctamente!</h2>
         <a href="/">Volver al Menú Principal</a><br>
@@ -558,18 +656,10 @@ def historial_partidas():
 
     conn.close()
 
-    tabla = '''
+    tabla = f'''
     <html>
-    <head>
-        <title>Historial de Partidas</title>
-        <style>
-            body { font-family: Arial; text-align: center; padding: 50px; background-color: #fff8f0; }
-            table { margin: auto; border-collapse: collapse; width: 90%; }
-            th, td { border: 1px solid #ddd; padding: 8px; }
-            th { background-color: #FF7043; color: white; }
-            tr:nth-child(even) { background-color: #f2f2f2; }
-        </style>
-    </head>
+    {html_head("Historial de partidas")}
+      
     <body>
         <h1>Historial de Partidas</h1>
         <table>
@@ -593,7 +683,7 @@ def historial_partidas():
         else:
             resultado = "Gana Mazo 2"
 
-        tabla += f'''
+        tabla += '''
             <tr>
                 <td>{partida['fecha']}</td>
                 <td>{mazo1}</td>
@@ -613,9 +703,9 @@ def historial_partidas():
     return tabla
 @app.route('/ranking-global-filtrado', methods=['GET'])
 def ranking_global_filtrado_form():
-    return '''
+    return f'''
     <html>
-    <head><title>Ranking Global Filtrado</title></head>
+    {html_head("Ranking")}
     <body style="text-align:center; padding:50px;">
         <h1>Ranking Global Filtrado por Palabra Clave</h1>
         <form action="/ranking-global-filtrado" method="post">
@@ -653,18 +743,10 @@ def ranking_global_filtrado():
     ''', parametros).fetchall()
     conn.close()
 
-    tabla = '''
+    tabla = f'''
     <html>
-    <head>
-        <title>Ranking Global Filtrado</title>
-        <style>
-            body { font-family: Arial; text-align: center; padding: 50px; background-color: #e8f0fe; }
-            table { margin: auto; border-collapse: collapse; width: 80%; }
-            th, td { border: 1px solid #ddd; padding: 8px; }
-            th { background-color: #28a745; color: white; }
-            tr:nth-child(even) { background-color: #f2f2f2; }
-        </style>
-    </head>
+    {html_head("Ranking")}
+    
     <body>
         <h1>Ranking Global Filtrado</h1>
         <h3>Filtros aplicados: ''' + ", ".join(filtros) + '''</h3>
