@@ -158,8 +158,9 @@ def home():
         <br>
         <a class="boton" href="/registrar-mazo">Registrar nuevo mazo</a>
         <a class="boton" href="/ranking">Ver Ranking Mazos</a>
+        <a class="boton" href="/ranking-filtrado">Ver Ranking Mazos con Filtro </a>
         <a class="boton" href="/ranking-global">Ver Ranking Jugadores </a>
-        <a class="boton" href="/ranking-global-filtrado">Ver Ranking con Filtro </a>
+        <a class="boton" href="/ranking-global-filtrado">Ver Ranking Jugadores con Filtro </a>
         <a class="boton" href="/registrar-partida">Registrar una nueva partida</a>
         <a class="boton" href="/registrar-partida-simulado">Registrar una pseudo-partida</a>
         <a class="boton" href="/mazos">Ver y editar mazos registrados</a>
@@ -404,6 +405,107 @@ def ver_ranking():
     for mazo in mazos:
         imagen_html = f"<img src='{mazo['imagen_url']}' class='ranking-img' alt='Sin imagen'>" if mazo[
             'imagen_url'] else "Sin imagen"
+        info = partidas_info.get(mazo['id'], {'jugadas': 0, 'ganadas': 0, 'porcentaje': 0})
+        tabla += f'''
+            <tr>
+                <td>{imagen_html}</td>
+                <td>{mazo['nombre_mazo']}</td>
+                <td>{mazo['jugador']}</td>
+                <td>{round(mazo['elo'], 2)}</td>
+                <td>{info['jugadas']}</td>
+                <td>{info['porcentaje']}%</td>
+            </tr>
+        '''
+
+    tabla += '''
+        </table>
+        <br>
+        <a href="/">Volver al Menú Principal</a>
+    </body>
+    </html>
+    '''
+
+    return tabla
+
+@app.route('/ranking-filtrado', methods=['GET'])
+def ranking_filtrado_form():
+    return f'''
+    <html>
+    {html_head("Ranking Filtrado")}
+    <body>
+        <h1>Ranking Filtrado por Palabra Clave</h1>
+        <form action="/ranking-filtrado" method="post">
+            <label>Ingresa palabras clave (separadas por coma):</label><br><br>
+            <input type="text" name="filtro" placeholder="Ej: Monocolor, Bloomburrow" required><br><br>
+            <input type="submit" value="Filtrar Ranking">
+        </form>
+        <br>
+        <a href="/">Volver al Menú Principal</a>
+    </body>
+    </html>
+    '''
+@app.route('/ranking-filtrado', methods=['POST'])
+def ranking_filtrado_resultado():
+    filtros = request.form.get('filtro')
+    filtros = [f.strip() for f in filtros.split(',') if f.strip() != '']
+
+    if not filtros:
+        return "<h1>No ingresaste filtros válidos</h1><a href='/ranking-filtrado'>Volver</a>"
+
+    condiciones = " OR ".join(["Open_id LIKE ?" for _ in filtros])
+    parametros = [f"%{filtro}%" for filtro in filtros]
+
+    conn = get_db_connection()
+    mazos = conn.execute(f'''
+        SELECT * FROM mazos
+        WHERE {condiciones}
+        ORDER BY elo DESC
+    ''', parametros).fetchall()
+
+    partidas_info = {}
+    for mazo in mazos:
+        id = mazo['id']
+
+        total = conn.execute('''
+            SELECT COUNT(*) as total
+            FROM partidas
+            WHERE mazo_1_id = ? OR mazo_2_id = ?
+        ''', (id, id)).fetchone()['total']
+
+        ganadas = conn.execute('''
+            SELECT 
+                (SELECT COUNT(*) FROM partidas WHERE mazo_1_id = ? AND resultado_mazo_1 = 1) +
+                (SELECT COUNT(*) FROM partidas WHERE mazo_2_id = ? AND resultado_mazo_1 = 0) 
+                AS ganadas
+        ''', (id, id)).fetchone()['ganadas']
+
+        partidas_info[id] = {
+            'jugadas': total,
+            'ganadas': ganadas,
+            'porcentaje': round((ganadas / total * 100), 1) if total > 0 else 0
+        }
+
+    conn.close()
+
+    tabla = f'''
+    <html>
+    {html_head("Ranking Filtrado")}
+    <body>
+        <h1>Ranking de Mazos Filtrado</h1>
+        <h3>Filtros aplicados: {", ".join(filtros)}</h3>
+        <table>
+            <tr>
+                <th>Imagen</th>
+                <th>Nombre del Mazo</th>
+                <th>Jugador</th>
+                <th>ELO</th>
+                <th>Partidas Jugadas</th>
+                <th>Victorias (%)</th>
+            </tr>
+    '''
+
+    for mazo in mazos:
+        imagen_html = f"<img src='{mazo['imagen_url']}' class='ranking-img' alt='Sin imagen'>" if mazo['imagen_url'] else "Sin imagen"
         info = partidas_info.get(mazo['id'], {'jugadas': 0, 'ganadas': 0, 'porcentaje': 0})
         tabla += f'''
             <tr>
