@@ -427,6 +427,7 @@ def ver_ranking():
     return tabla
 
 
+
 @app.route('/registrar-partida', methods=['GET'])
 def registrar_partida_form():
     conn = get_db_connection()
