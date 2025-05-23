@@ -1166,6 +1166,9 @@ def registrar_partida_multiple_form():
                     }}
                 }});
             }}
+            window.addEventListener('DOMContentLoaded', (event) => {{
+            filtrarMazosPorTorneo();
+            }});
         </script>
     </body>
     </html>
