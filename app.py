@@ -1124,7 +1124,7 @@ def registrar_partida_multiple_form():
     <html>
     {html_head("Registrar Partida Múltiple")}
     <body>
-        <h1>Registrar Partida Múltiple (4 a 7 jugadores)</h1>
+        <h1>Registrar Nueva Partida</h1>
         <form action="/registrar-partida-multiple" method="post">
 
             <label for="torneo">¿Esta partida pertenece a un torneo?</label><br>
@@ -1147,29 +1147,31 @@ def registrar_partida_multiple_form():
 
         <br><a href="/">Volver al Menú Principal</a>
 
-        <script>
-            function filtrarMazosPorTorneo() {{
-                var torneo = document.getElementById('torneo-select').value;
-                var selectGanadores = document.getElementById('mazos-ganadores');
-                var selectPerdedores = document.getElementById('mazos-perdedores');
+        # Actualización del script JS con compatibilidad iPhone y para f-strings
+<script>
+    const allOptions = Array.from(document.querySelectorAll("#mazos-ganadores option"));
 
-                [selectGanadores, selectPerdedores].forEach(select => {{
-                    for (let i = 0; i < select.options.length; i++) {{
-                        let opt = select.options[i];
-                        let keywords = opt.getAttribute('data-keywords') || "";
-                        if (torneo === 'libre' || keywords.includes(torneo)) {{
-                            opt.style.display = '';
-                        }} else {{
-                            opt.style.display = 'none';
-                            opt.selected = false;
-                        }}
-                    }}
-                }});
-            }}
-            window.addEventListener('DOMContentLoaded', (event) => {{
-            filtrarMazosPorTorneo();
+    function filtrarMazosPorTorneo() {{
+        const torneo = document.getElementById('torneo-select').value;
+        const selects = [document.getElementById('mazos-ganadores'), document.getElementById('mazos-perdedores')];
+
+        selects.forEach(select => {{
+            select.innerHTML = "";  // Borrar opciones actuales
+            allOptions.forEach(opt => {{
+                const keywords = opt.getAttribute("data-keywords") || "";
+                if (torneo === "libre" || keywords.includes(torneo)) {{
+                    select.appendChild(opt.cloneNode(true));
+                }}
             }});
-        </script>
+        }});
+    }}
+
+    document.addEventListener("DOMContentLoaded", () => {{
+        filtrarMazosPorTorneo();
+        document.getElementById("torneo-select").addEventListener("change", filtrarMazosPorTorneo);
+    }});
+</script>
+
     </body>
     </html>
     '''
