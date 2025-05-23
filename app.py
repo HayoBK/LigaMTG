@@ -151,7 +151,7 @@ def home():
     return f'''
     <html>
     {html_head("LIGA MTG - HBK")}
-  
+
     <body>
         <h1>Bienvenido a Liga MTG 2025 - LAS TRES PIERNAS</h1>
         <img src="https://static.wixstatic.com/media/73522c_eef87b5cad5c4f8ca41de702a9b268f8~mv2.jpg" alt="Portada">
@@ -162,11 +162,13 @@ def home():
         <a class="boton" href="/ranking-global">Ver Ranking Jugadores </a>
         <a class="boton" href="/ranking-global-filtrado">Ver Ranking Jugadores con Filtro </a>
         <a class="boton" href="/registrar-partida">Registrar una nueva partida</a>
+        <a class="boton" href="/registrar-partida-multiple">Registrar Partida Múltiple</a>
         <a class="boton" href="/registrar-partida-simulado">Registrar una pseudo-partida</a>
+        <a class="boton" href="/torneos">Ver Torneos</a>
         <a class="boton" href="/mazos">Ver y editar mazos registrados</a>
         <a class="boton" href="/historial-partidas">Historial de Partidas</a>
 
-        
+
     </body>
     </html>
     '''
@@ -360,7 +362,9 @@ def ver_ranking():
     conn = get_db_connection()
     mazos = conn.execute('SELECT * FROM mazos ORDER BY elo DESC').fetchall()
 
-    partidas_info = {}
+    activos = []
+    sin_jugar = []
+
     for mazo in mazos:
         id = mazo['id']
 
@@ -371,26 +375,33 @@ def ver_ranking():
         ''', (id, id)).fetchone()['total']
 
         ganadas = conn.execute('''
-            SELECT 
+            SELECT
                 (SELECT COUNT(*) FROM partidas WHERE mazo_1_id = ? AND resultado_mazo_1 = 1) +
-                (SELECT COUNT(*) FROM partidas WHERE mazo_2_id = ? AND resultado_mazo_1 = 0) 
+                (SELECT COUNT(*) FROM partidas WHERE mazo_2_id = ? AND resultado_mazo_1 = 0)
                 AS ganadas
         ''', (id, id)).fetchone()['ganadas']
 
-        partidas_info[id] = {
+        info = {
+            'mazo': mazo,
             'jugadas': total,
             'ganadas': ganadas,
             'porcentaje': round((ganadas / total * 100), 1) if total > 0 else 0
         }
+
+        if total > 0:
+            activos.append(info)
+        else:
+            sin_jugar.append(info)
 
     conn.close()
 
     tabla = f'''
     <html>
     {html_head("Ranking")}
-       
+
     <body>
         <h1>Ranking de Mazos</h1>
+        <h2>Mazos con partidas jugadas</h2>
         <table>
             <tr>
                 <th>Imagen</th>
@@ -402,10 +413,9 @@ def ver_ranking():
             </tr>
     '''
 
-    for mazo in mazos:
-        imagen_html = f"<img src='{mazo['imagen_url']}' class='ranking-img' alt='Sin imagen'>" if mazo[
-            'imagen_url'] else "Sin imagen"
-        info = partidas_info.get(mazo['id'], {'jugadas': 0, 'ganadas': 0, 'porcentaje': 0})
+    for info in activos:
+        mazo = info['mazo']
+        imagen_html = f"<img src='{mazo['imagen_url']}' class='ranking-img' alt='Sin imagen'>" if mazo['imagen_url'] else "Sin imagen"
         tabla += f'''
             <tr>
                 <td>{imagen_html}</td>
@@ -419,6 +429,31 @@ def ver_ranking():
 
     tabla += '''
         </table>
+        <br><br>
+        <h2>Mazos aún sin partidas</h2>
+        <table>
+            <tr>
+                <th>Imagen</th>
+                <th>Nombre del Mazo</th>
+                <th>Jugador</th>
+                <th>ELO</th>
+            </tr>
+    '''
+
+    for info in sin_jugar:
+        mazo = info['mazo']
+        imagen_html = f"<img src='{mazo['imagen_url']}' class='ranking-img' alt='Sin imagen'>" if mazo['imagen_url'] else "Sin imagen"
+        tabla += f'''
+            <tr>
+                <td>{imagen_html}</td>
+                <td>{mazo['nombre_mazo']}</td>
+                <td>{mazo['jugador']}</td>
+                <td>{round(mazo['elo'], 2)}</td>
+            </tr>
+        '''
+
+    tabla += '''
+        </table>
         <br>
         <a href="/">Volver al Menú Principal</a>
     </body>
@@ -426,6 +461,7 @@ def ver_ranking():
     '''
 
     return tabla
+
 
 @app.route('/ranking-filtrado', methods=['GET'])
 def ranking_filtrado_form():
@@ -473,9 +509,9 @@ def ranking_filtrado_resultado():
         ''', (id, id)).fetchone()['total']
 
         ganadas = conn.execute('''
-            SELECT 
+            SELECT
                 (SELECT COUNT(*) FROM partidas WHERE mazo_1_id = ? AND resultado_mazo_1 = 1) +
-                (SELECT COUNT(*) FROM partidas WHERE mazo_2_id = ? AND resultado_mazo_1 = 0) 
+                (SELECT COUNT(*) FROM partidas WHERE mazo_2_id = ? AND resultado_mazo_1 = 0)
                 AS ganadas
         ''', (id, id)).fetchone()['ganadas']
 
@@ -529,7 +565,6 @@ def ranking_filtrado_resultado():
     return tabla
 
 
-
 @app.route('/registrar-partida', methods=['GET'])
 def registrar_partida_form():
     conn = get_db_connection()
@@ -555,6 +590,8 @@ def registrar_partida_form():
                 <option value="1">Sí</option>
                 <option value="0">No</option>
             </select><br><br>
+            <label for="torneo">Torneo (opcional):</label><br>
+            <input type="text" name="torneo" placeholder="Ej: T1"><br><br>
             <input type="submit" value="Registrar Partida">
         </form>
         <br>
@@ -568,6 +605,7 @@ def registrar_partida_guardar():
     mazo1_id = int(request.form.get('mazo1'))
     mazo2_id = int(request.form.get('mazo2'))
     resultado_mazo1 = int(request.form.get('resultado'))  # 1 si gana Mazo 1, 0 si gana Mazo 2
+    torneo = request.form.get('torneo') or None  # ← opcional, puede ser None
 
     conn = get_db_connection()
     mazo1 = conn.execute('SELECT * FROM mazos WHERE id = ?', (mazo1_id,)).fetchone()
@@ -589,9 +627,9 @@ def registrar_partida_guardar():
 
     # Guardar la partida
     conn.execute('''
-        INSERT INTO partidas (mazo_1_id, mazo_2_id, resultado_mazo_1)
-        VALUES (?, ?, ?)
-    ''', (mazo1_id, mazo2_id, resultado_mazo1))
+        INSERT INTO partidas (mazo_1_id, mazo_2_id, resultado_mazo_1, torneo)
+        VALUES (?, ?, ?, ?)
+    ''', (mazo_1_id, mazo_2_id, resultado_mazo_1, torneo))
 
     # Actualizar ELOs
     conn.execute('''
@@ -619,9 +657,9 @@ def registrar_partida_guardar():
 def ranking_global():
     conn = get_db_connection()
     jugadores = conn.execute('''
-        SELECT 
-            jugador, 
-            AVG(elo) as promedio_elo, 
+        SELECT
+            jugador,
+            AVG(elo) as promedio_elo,
             COUNT(*) as cantidad_mazos
         FROM mazos
         GROUP BY jugador
@@ -743,9 +781,9 @@ def historial_partidas():
     conn = get_db_connection()
 
     partidas = conn.execute('''
-        SELECT 
-            p.id, 
-            p.fecha, 
+        SELECT
+            p.id,
+            p.fecha,
             p.resultado_mazo_1,
             m1.nombre_mazo AS mazo1_nombre,
             m1.jugador AS mazo1_jugador,
@@ -762,7 +800,7 @@ def historial_partidas():
     tabla = f'''
     <html>
     {html_head("Historial de partidas")}
-      
+
     <body>
         <h1>Historial de Partidas</h1>
         <table>
@@ -771,6 +809,8 @@ def historial_partidas():
                 <th>Mazo 1</th>
                 <th>Mazo 2</th>
                 <th>Resultado</th>
+                <th>Acción</th>
+
             </tr>
     '''
 
@@ -786,16 +826,21 @@ def historial_partidas():
         else:
             resultado = "Gana Mazo 2"
 
-        tabla += '''
+        tabla += f'''
             <tr>
                 <td>{partida['fecha']}</td>
                 <td>{mazo1}</td>
                 <td>{mazo2}</td>
                 <td>{resultado}</td>
+                <td>
+                    <form action="/borrar-partida/{partida['id']}" method="post" onsubmit="return confirm('¿Seguro que quieres borrar esta partida?');">
+                        <input type="submit" value="❌ Borrar" style="background-color:red; color:white; font-weight:bold;">
+                    </form>
+                </td>
             </tr>
         '''
 
-    tabla += '''
+    tabla += f'''
         </table>
         <br>
         <a href="/">Volver al Menú Principal</a>
@@ -804,6 +849,16 @@ def historial_partidas():
     '''
 
     return tabla
+
+@app.route('/borrar-partida/<int:partida_id>', methods=['POST'])
+def borrar_partida(partida_id):
+    conn = get_db_connection()
+    conn.execute("DELETE FROM partidas WHERE id = ?", (partida_id,))
+    conn.commit()
+    conn.close()
+
+    return redirect('/historial-partidas')
+
 @app.route('/ranking-global-filtrado', methods=['GET'])
 def ranking_global_filtrado_form():
     return f'''
@@ -835,9 +890,9 @@ def ranking_global_filtrado():
 
     conn = get_db_connection()
     jugadores = conn.execute(f'''
-        SELECT 
-            jugador, 
-            AVG(elo) as promedio_elo, 
+        SELECT
+            jugador,
+            AVG(elo) as promedio_elo,
             COUNT(*) as cantidad_mazos
         FROM mazos
         WHERE {condiciones}
@@ -849,7 +904,7 @@ def ranking_global_filtrado():
     tabla = f'''
     <html>
     {html_head("Ranking")}
-    
+
     <body>
         <h1>Ranking Global Filtrado</h1>
         <h3>Filtros aplicados: ''' + ", ".join(filtros) + '''</h3>
@@ -884,6 +939,199 @@ def ranking_global_filtrado():
     '''
 
     return tabla
+
+
+@app.route('/torneo/<nombre>', methods=['GET'])
+def ver_torneo(nombre):
+    conn = get_db_connection()
+
+    # 1. Obtener mazos participantes (con keyword = nombre del torneo en Open_id)
+    mazos = conn.execute("SELECT * FROM mazos WHERE Open_id LIKE ?", (f"%{nombre}%",)).fetchall()
+    mazo_dict = {mazo['id']: mazo for mazo in mazos}
+
+    # 2. Obtener todas las partidas de este torneo
+    partidas = conn.execute("SELECT * FROM partidas WHERE torneo = ?", (nombre,)).fetchall()
+
+    # 3. Armar estructura de resultados
+    resultados = {}  # (mazo1, mazo2) → [ganadas_mazo1, ganadas_mazo2]
+    puntos = {}      # mazo_id → {'puntos': x, 'diferencia': y, 'mazo': obj}
+
+    for mazo in mazos:
+        puntos[mazo['id']] = {'puntos': 0, 'diferencia': 0, 'mazo': mazo}
+
+    for partida in partidas:
+        m1 = partida['mazo_1_id']
+        m2 = partida['mazo_2_id']
+        res = partida['resultado_mazo_1']
+
+        if m1 not in mazo_dict or m2 not in mazo_dict:
+            continue  # ignorar partidas con mazos fuera del torneo
+
+        key = tuple(sorted([m1, m2]))  # ordenado para que (A,B) == (B,A)
+
+        if key not in resultados:
+            resultados[key] = {m1: 0, m2: 0}
+
+        if res == 1:
+            resultados[key][m1] += 1
+        else:
+            resultados[key][m2] += 1
+
+    # 4. Calcular puntos y diferencia
+    for (m1, m2), res_dict in resultados.items():
+        g1 = res_dict[m1]
+        g2 = res_dict[m2]
+
+        if g1 > g2:
+            puntos[m1]['puntos'] += 1
+        else:
+            puntos[m2]['puntos'] += 1
+
+        puntos[m1]['diferencia'] += g1 - g2
+        puntos[m2]['diferencia'] += g2 - g1
+
+    conn.close()
+
+    # 5. Construir tabla visual
+    tabla = f'''
+    <html>
+    {html_head(f"Torneo {nombre}")}
+    <body>
+        <h1>Torneo: {nombre}</h1>
+        <h2>Grilla de Encuentros</h2>
+        <table>
+            <tr>
+                <th></th>
+    '''
+
+    orden = list(puntos.keys())
+
+    for id2 in orden:
+        tabla += f"<th><img src='{puntos[id2]['mazo']['imagen_url']}' class='ranking-img'><br>{puntos[id2]['mazo']['nombre_mazo']}</th>"
+    tabla += "</tr>"
+
+    for id1 in orden:
+        tabla += f"<tr><th><img src='{puntos[id1]['mazo']['imagen_url']}' class='ranking-img'><br>{puntos[id1]['mazo']['nombre_mazo']}</th>"
+        for id2 in orden:
+            if id1 == id2:
+                tabla += "<td style='background-color:#ccc;'>—</td>"
+            else:
+                key = tuple(sorted([id1, id2]))
+                if key in resultados:
+                    r = resultados[key]
+                    tabla += f"<td>{r.get(id1,0)} - {r.get(id2,0)}</td>"
+                else:
+                    tabla += "<td>-</td>"
+        tabla += "</tr>"
+    tabla += "</table><br><br>"
+
+    # 6. Ranking final
+    ranking = sorted(puntos.values(), key=lambda x: (-x['puntos'], -x['diferencia'], -x['mazo']['elo']))
+
+    tabla += "<h2>Ranking Final</h2><table><tr><th>Jugador</th><th>Mazo</th><th>Puntos</th><th>Diferencia</th><th>ELO</th></tr>"
+    for entry in ranking:
+        mazo = entry['mazo']
+        tabla += f"<tr><td>{mazo['jugador']}</td><td>{mazo['nombre_mazo']}</td><td>{entry['puntos']}</td><td>{entry['diferencia']}</td><td>{round(mazo['elo'], 2)}</td></tr>"
+    tabla += "</table><br><a href='/'>Volver al Menú Principal</a></body></html>"
+
+    return tabla
+
+@app.route('/torneos', methods=['GET'])
+def lista_torneos():
+    conn = get_db_connection()
+    torneos = conn.execute("SELECT DISTINCT torneo FROM partidas WHERE torneo IS NOT NULL").fetchall()
+    conn.close()
+
+    html = f'''
+    <html>
+    {html_head("Torneos Disponibles")}
+    <body>
+        <h1>Torneos Registrados</h1>
+        <ul style="list-style-type:none; padding:0;">
+    '''
+
+    if not torneos:
+        html += "<p>No hay torneos registrados aún.</p>"
+    else:
+        for torneo in torneos:
+            nombre = torneo['torneo']
+            html += f'''
+                <li style="margin: 10px 0;">
+                    <a class="boton" href="/torneo/{nombre}">Torneo: {nombre}</a>
+                </li>
+            '''
+
+    html += '''
+        </ul>
+        <br><a href="/">Volver al Menú Principal</a>
+    </body>
+    </html>
+    '''
+
+    return html
+
+@app.route('/registrar-partida-multiple', methods=['GET'])
+def registrar_partida_multiple_form():
+    conn = get_db_connection()
+    mazos = conn.execute("SELECT * FROM mazos ORDER BY jugador, nombre_mazo").fetchall()
+    conn.close()
+
+    opciones = ""
+    for mazo in mazos:
+        opciones += f"<option value='{mazo['id']}'>{mazo['nombre_mazo']} ({mazo['jugador']})</option>"
+
+    return f'''
+    <html>
+    {html_head("Registrar Partida Múltiple")}
+    <body>
+        <h1>Registrar Partida Múltiple (4 a 7 jugadores)</h1>
+        <form action="/registrar-partida-multiple" method="post">
+            <label>Ganadores (puedes seleccionar múltiples):</label><br>
+            <select name="ganadores" multiple size="7" required>{opciones}</select><br><br>
+
+            <label>Perdedores (puedes seleccionar múltiples):</label><br>
+            <select name="perdedores" multiple size="7" required>{opciones}</select><br><br>
+
+            <label>Torneo (opcional):</label><br>
+            <input type="text" name="torneo" placeholder="Ej: T3"><br><br>
+
+            <input type="submit" value="Registrar Partida Múltiple">
+        </form>
+        <br><a href="/">Volver al Menú Principal</a>
+    </body>
+    </html>
+    '''
+@app.route('/registrar-partida-multiple', methods=['POST'])
+def registrar_partida_multiple():
+    ganadores = request.form.getlist('ganadores')
+    perdedores = request.form.getlist('perdedores')
+    torneo = request.form.get('torneo') or None
+
+    if not ganadores or not perdedores:
+        return "<h1>Debe haber al menos un ganador y un perdedor.</h1><a href='/registrar-partida-multiple'>Volver</a>"
+
+    conn = get_db_connection()
+
+    for g in ganadores:
+        for p in perdedores:
+            # ELO se actualizará como si fuera una partida normal: g ganó, p perdió
+            conn.execute('''
+                INSERT INTO partidas (mazo_1_id, mazo_2_id, resultado_mazo_1, torneo)
+                VALUES (?, ?, ?, ?)
+            ''', (int(g), int(p), 1, torneo))
+
+    conn.commit()
+    conn.close()
+
+    return '''
+    <html>
+    <body style="text-align:center; padding:50px;">
+        <h2>Partida múltiple registrada exitosamente</h2>
+        <a href="/">Volver al Menú Principal</a><br>
+        <a href="/torneos">Ver Torneos</a>
+    </body>
+    </html>
+    '''
 
 
 # Ejecutar la app
